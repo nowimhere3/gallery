@@ -1,15 +1,6 @@
-const SUPPORTED_PREFIXES = ["image/", "video/"];
+import { isSupportedFile, createMediaItem } from "./media-item-factory.js";
+
 const DEFAULT_BATCH_SIZE = 250;
-
-function isSupportedFile(file) {
-  return SUPPORTED_PREFIXES.some((prefix) => file.type.startsWith(prefix));
-}
-
-function getKind(file) {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("video/")) return "video";
-  return "unknown";
-}
 
 function safeRelativePath(file) {
   return file.webkitRelativePath || file.name;
@@ -86,30 +77,17 @@ export class LocalFileInputProvider {
       const batchItems = batchFiles.map((file, offset) => {
         const index = start + offset;
         const objectUrl = URL.createObjectURL(file);
-        const kind = getKind(file);
 
         this.#activeUrls.push(objectUrl);
 
-        return {
-          id: `local-${index}-${file.name}-${file.lastModified}`,
-          name: file.name,
+        return createMediaItem({
+          idPrefix: "local",
+          index,
+          file,
           path: safeRelativePath(file),
           relativePath: computeRelativePath(file),
-          type: file.type,
-          kind,
-          size: file.size,
-          lastModified: file.lastModified,
-          file,
           url: objectUrl,
-          // Metadata foundation (Filtering & Tagging Phase 1). mediaType
-          // mirrors `kind` under the name the filtering pipeline and future
-          // tagging UI use; systemTags are auto-derived and read-only from
-          // the user's perspective, userTags is reserved for a future
-          // tag-editing UI and stays empty for now.
-          mediaType: kind,
-          systemTags: [kind],
-          userTags: [],
-        };
+        });
       });
 
       items.push(...batchItems);
