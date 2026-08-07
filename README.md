@@ -110,7 +110,7 @@ If folder picking is unavailable or awkward in your browser, use **Choose Files*
 - Some unusual codecs or RAW image formats may not render even if selected
 - No persistence on refresh
 - No multi-panel “fill panel” mode yet
-- No drag-and-drop yet
+- No drag-and-drop yet - soon tho!
 
 ## Next likely improvements
 
