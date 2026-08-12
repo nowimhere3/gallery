@@ -11,6 +11,11 @@
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
   --radius: 16px;
   --ghost-opacity: 0.18;
+  /* Blue counterpart to the neon green already used for the Loop toggle
+     and 🤖 Automation button (#00ff00, glow rgba(0, 170, 0, ...)) — same
+     saturation/brightness family, just blue. Used for "selected tag". */
+  --neon-blue: #00d2ff;
+  --neon-blue-glow: rgba(0, 210, 255, 0.55);
 }
 
 * {
@@ -132,6 +137,23 @@ input {
   margin-bottom: 16px;
 }
 
+/* [LIBRARY-PROFILE-UX / Phase 8.5] Deliberately smaller/lighter than
+   .tags-section/.profile-section's 1.5em summaries — this is a minor,
+   collapsed-by-default subsection of Load Media, not a top-level panel
+   section, so it shouldn't visually compete with those. */
+.legacy-picker-details summary {
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.legacy-picker-details[open] summary {
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
 .media-content {
   display: flex;
   flex-direction: column;
@@ -149,6 +171,80 @@ input {
   display: grid;
   grid-template-columns: 1fr 3fr;
   gap: 10px;
+}
+
+/* [FSA] Its own row — now a single "Choose Folder (FSA)" button; resuming
+   a remembered library happens via the .fsa-recent-libraries list below
+   instead of a second button here. */
+.fsa-picker-row {
+  grid-template-columns: 1fr;
+  margin-top: 10px;
+}
+
+/* [LIBRARY-REGISTRY] "Recent Libraries" list — one row per remembered FSA
+   folder. Mirrors .tag-chip-row's row/remove-button pattern elsewhere in
+   this file rather than inventing a new visual language. */
+.fsa-recent-libraries {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.fsa-recent-libraries.is-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* [LIBRARY-PROFILE-ASSOCIATION] Deliberately understated — this is an
+   occasional, easy-to-miss-on-purpose affordance, not a primary action. */
+.fsa-associate-btn {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
+.fsa-recent-library-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.fsa-recent-library-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.fsa-recent-library-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.fsa-recent-library-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.fsa-recent-library-remove-btn {
+  flex: 0 0 auto;
+  min-width: 36px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
 }
 
 .button-like,
@@ -249,6 +345,70 @@ button:not(:disabled):hover,
   width: 100%;
 }
 
+.tag-activity-center {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(0, 255, 0, 0.25);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.tag-activity-center > div {
+  width: 100%;
+}
+
+.tag-activity-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tag-activity-details {
+  justify-content: space-between;
+  margin-top: 7px;
+  gap: 12px;
+}
+
+.tag-activity-value {
+  color: #00ff00;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.tag-activity-description,
+.tag-activity-neutral {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* [8.3] Compact — this sits inside the already-small Status Update Center
+   box, not a full-width action. */
+.tag-activity-search-btn {
+  margin-top: 9px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  min-height: 0;
+}
+
+/* [Phase 8.3-2] Container for the (up to three) per-mode progress rows —
+   Shuffle OFF / Shuffle ON / legacy — built dynamically in main.js. Each
+   row reuses .tag-activity-row.tag-activity-details for its own internal
+   layout; this just stacks them with breathing room between. */
+.tag-activity-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.tag-activity-rows .tag-activity-search-btn {
+  margin-top: 0;
+}
+
 .tag-create-row {
   display: flex;
   flex-wrap: wrap;
@@ -270,6 +430,66 @@ button:not(:disabled):hover,
 .tag-create-row button {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* Profile Selector / Creation (Phase 8.3) — deliberately styled to match
+   .tag-create-row above rather than introducing a new visual language. */
+.profile-current-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.profile-select-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.profile-current-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  background: #0d1530;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.profile-delete-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.profile-create-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.profile-create-row input[type="text"] {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  background: #0d1530;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.profile-create-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.profile-inline-hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
 }
 
 .tags-grid {
@@ -339,7 +559,13 @@ button:not(:disabled):hover,
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(9, 16, 29, 0.65);
-  color: var(--muted);
+  /* [Phase 8.4-2] This box communicates live/current file state, same as
+     the Status Update Center — shares its exact green/monospace treatment
+     for that reason. Styled on the container so both the <strong> labels
+     and the dynamic <span> values inherit it, rather than styling the
+     three value spans individually. */
+  color: #00ff00;
+  font-family: "Courier New", ui-monospace, monospace;
   display: grid;
   gap: 8px;
 }
@@ -394,6 +620,74 @@ button:not(:disabled):hover,
   border-color: transparent;
 }
 
+/* Phase 6.3 — Gallery Tag Filtering. Deliberately a plain in-flow panel
+   (not a floating/absolute overlay) so it pushes the viewer content down
+   rather than covering it — the media grid "shifts downward only by the
+   minimum amount necessary" comes from the panel actually being short,
+   not from stacking on top of anything. */
+.tags-filter-panel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(8, 14, 26, 0.55);
+}
+
+.tags-filter-panel .hint {
+  margin: 0;
+}
+
+/* Grow horizontally first, vertically second: a fixed 4 columns on
+   comfortably wide viewers, narrowing gracefully rather than wrapping into
+   extra rows before it needs to. New rows only ever contain the overflow
+   (e.g. a 6th tag on its own second row of one), never a padded-out row. */
+.tags-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .tags-filter-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .tags-filter-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Same Tag visual language as everywhere else (Presentation's Fast Tagging
+   panel, Gallery Settings' own tag chips): outlined blue by default, filled
+   neon blue (var(--accent)) when active — distinct from the neutral gray
+   .filter-btn look View/Type use, since these ARE tags, not a plain
+   toggle. The .active fill itself already comes from .filter-btn.active;
+   only the unselected/outlined state needs overriding here. */
+.tag-filter-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  color: #9ec2ff;
+  border-color: rgba(70, 130, 255, 0.5);
+}
+
+/* Same neon blue as the Presentation Tags panel's "applied" state (see
+   .presentation-tag-btn.is-applied) — overrides the plain .filter-btn.active
+   accent fill that View/Type/Favorites use, since these specifically ARE
+   tags and should read with the same intensity as everywhere else tags
+   appear. */
+.tag-filter-btn.active {
+  background: var(--neon-blue);
+  color: #001522;
+  border-color: transparent;
+  box-shadow: 0 0 12px var(--neon-blue-glow), 0 0 6px var(--neon-blue-glow);
+}
+
 .viewer-stage {
   width: 100%;
   min-height: 500px;
@@ -428,6 +722,69 @@ button:not(:disabled):hover,
   background: rgba(8, 14, 26, 0.45);
   text-align: center;
   padding: 20px;
+}
+
+/* Gallery Media Navigation. A compact single-row utility control that
+   reuses the existing toolbar label and button visual language. */
+.gallery-jump-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+button.tag-status-select {
+  min-height: 28px;
+  min-width: 0;
+  padding: 2px 4px;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+button.tag-status-select.is-selected {
+  color: var(--neon-blue);
+  background: rgba(0, 210, 255, 0.1);
+}
+
+.gallery-jump-group .filter-btn {
+  flex: 0 0 auto;
+}
+
+.gallery-jump-separator {
+  color: var(--muted);
+}
+
+.gallery-jump-input {
+  width: 84px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.gallery-jump-input::placeholder {
+  color: var(--muted);
+}
+
+/* Momentary feedback for invalid/out-of-range/empty input — cleared
+   automatically a moment later, no persistent error state to manage. */
+.gallery-jump-input.is-invalid {
+  border-color: var(--danger);
+}
+
+/* Persistent target border for Find in Gallery. It is distinct from the
+   active-card border, which continues to track the Viewer's current item. */
+.gallery-card.gallery-jump-highlight {
+  outline: 4px solid var(--accent-2);
+  outline-offset: 3px;
 }
 
 .gallery-grid {
@@ -559,17 +916,16 @@ button:not(:disabled):hover,
 }
 
 .loop-toggle-control {
-  min-height: 44px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
   background: rgba(9, 16, 29, 0.65);
   color: #ff3333;
   cursor: pointer;
   font-weight: 800;
-  letter-spacing: 0.04em;
   transition: color 0.16s ease, filter 0.16s ease, text-shadow 0.16s ease;
 }
 
@@ -590,9 +946,15 @@ button:not(:disabled):hover,
   outline-offset: 2px;
 }
 
+/* Toolbar resizing/polish pass: 🔁 now shows only the icon (state is
+   conveyed by color/glow + the title tooltip, set in main.js), so its
+   fixed width can shrink from the old text-sized 94px down to a compact
+   utility-tier square — freeing width for ◀ ⏯ ▶ below — while the icon
+   itself scales up via font-size so it's still easy to read at a glance. */
 .overlay-loop-toggle {
-  flex: 0 0 94px;
-  min-width: 94px;
+  flex: 0 0 60px;
+  min-width: 60px;
+  font-size: 1.6rem;
 }
 
 .wide-check {
@@ -633,12 +995,28 @@ hr {
   min-height: 100vh;
 }
 
+/* Fill Panel / Presentation Mode replaces the ordinary Gallery chrome
+   entirely rather than layering on top of it — the page heading/subtitle
+   live outside .layout entirely, so they need their own rule here rather
+   than being covered by .simulated-fullscreen-layout below. */
+.simulated-fullscreen .topbar {
+  display: none;
+}
+
 .simulated-fullscreen-layout {
   grid-template-columns: 1fr;
   margin-bottom: 0;
 }
 
 .simulated-fullscreen-layout .controls-panel {
+  display: none;
+}
+
+/* The second Gallery section (grid + its own header/jump controls) sits
+   alongside .viewer-panel in the same grid and was never hidden by the
+   .controls-panel rule above — during Fill Panel it's ordinary Gallery
+   chrome too, same as the sidebar. */
+.simulated-fullscreen-layout .gallery-panel {
   display: none;
 }
 
@@ -651,20 +1029,15 @@ hr {
   background: #000;
 }
 
-.simulated-fullscreen-viewer .viewer-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
-  margin: 0;
-  padding: 14px 18px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
-  pointer-events: none;
-}
-
-.simulated-fullscreen-viewer .viewer-header .favorite-toggle {
-  pointer-events: auto;
+/* Root-cause fix: this used to reposition the normal Gallery header
+   (View/Type/Tags filters + the normal favorite toggle) as a
+   pointer-events:none overlay strip rather than actually hiding it — so
+   it stayed visibly on screen during Fill Panel. Presentation Mode has
+   its own complete PM-UI toolbar (#presentation-controls) for
+   navigation/favoriting; the ordinary header has no role here at all. */
+.simulated-fullscreen-viewer .viewer-header,
+.simulated-fullscreen-viewer #tags-filter-panel {
+  display: none;
 }
 
 .simulated-fullscreen-viewer .viewer-stage {
@@ -692,7 +1065,7 @@ hr {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  width: min(96vw, 620px);
+  width: min(96vw, 720px);
   opacity: var(--ghost-opacity);
   transition: opacity 0.15s ease, bottom 0.15s ease;
   pointer-events: auto;
@@ -720,7 +1093,7 @@ hr {
 .overlay-btn {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 42px;
+  min-height: 56px;
   border-radius: 14px;
   background: #1c274b;
   color: #fff;
@@ -730,11 +1103,31 @@ hr {
   font-size: 0.95rem;
 }
 
+/* ---- Toolbar visual hierarchy (Presentation Mode resizing/polish) --------
+   PRIMARY  — ◀ ⏯ ▶ (#overlay-prev-btn/#overlay-play-btn/#overlay-next-btn,
+              unmodified base .overlay-btn otherwise): the toolbar's most-
+              used navigation controls, so they get a higher flex-grow
+              share of the row (claiming space from the fixed-width utility
+              buttons around them) AND a visibly larger icon glyph — the
+              button text IS the icon character here, so scaling font-size
+              scales the icon itself, not just the surrounding box.
+   HIGH-FREQUENCY — ❤️ Favorite: comfortable fixed size, close to PRIMARY's
+              height, but not competing for the row's flexible space.
+   UTILITY  — 🔁 (above), 🤖, 🙈 Hide, ↩ Undo, Exit, ⚙: same row height for
+              a balanced toolbar, but compact fixed widths. */
+#overlay-prev-btn,
+#overlay-play-btn,
+#overlay-next-btn {
+  flex: 1.7 1 0;
+  font-size: 1.75rem;
+  padding: 6px 4px;
+}
+
 .overlay-btn-favorite {
-  flex: 0 0 56px;
+  flex: 0 0 64px;
   background: rgba(128, 0, 32, 0.35);
   border-color: rgba(255, 140, 170, 0.35);
-  font-size: 1.1rem;
+  font-size: 1.5rem;
 }
 
 .overlay-btn-favorite.is-favorite {
@@ -743,7 +1136,7 @@ hr {
 }
 
 .overlay-btn-hide {
-  flex: 0 0 84px;
+  flex: 0 0 78px;
   background: rgba(40, 40, 48, 0.6);
   font-size: 0.85rem;
 }
@@ -754,9 +1147,9 @@ hr {
 }
 
 .overlay-btn-undo-hide {
-  flex: 0 0 76px;
+  flex: 0 0 70px;
   background: rgba(40, 40, 48, 0.6);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .overlay-btn-undo-hide:disabled {
@@ -765,8 +1158,8 @@ hr {
 }
 
 .overlay-btn-automation {
-  flex: 0 0 52px;
-  font-size: 1.1rem;
+  flex: 0 0 56px;
+  font-size: 1.3rem;
   background: rgba(9, 16, 29, 0.65);
   transition: color 0.16s ease, filter 0.16s ease, text-shadow 0.16s ease;
 }
@@ -782,34 +1175,167 @@ hr {
 }
 
 .overlay-btn-gear {
-  flex: 0 0 52px;
-  font-size: 1rem;
+  flex: 0 0 56px;
+  font-size: 1.1rem;
 }
 
 .overlay-btn-danger {
+  flex: 0 0 64px;
   background: #3a151a;
   border-color: #6b202b;
+  font-size: 0.85rem;
+}
+
+/* Sits between the toolbar above and the "⚙ row" below — a sibling of
+   both, not nested inside either — and only occupies layout space while
+   open. One row, same height/material as the toolbar: "Ghost Opacity"
+   label far left, slider next, percentage on the right. */
+.ghost-popunder {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.ghost-popunder-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+}
+
+.ghost-popunder-label {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ghost-popunder-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#ghost-opacity-label {
+  flex: 0 0 auto;
+  min-width: 3.5ch;
+  text-align: right;
+  color: var(--text);
+  font-size: 0.9rem;
 }
 
 .presentation-settings {
-  width: min(92vw, 260px);
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(10, 12, 22, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  /* Same "material" (background/border/blur) as the toolbar, and same
+     per-row height (min-height 42px content + 10px padding, matching
+     .overlay-btn) — this reads as another toolbar-style row, appearing
+     below the toolbar exactly like #automation-panel does, not as a
+     separate floating popup. Radius stays a softer 20px rather than the
+     toolbar's full pill, since a 5th+ tag can grow this to two rows. */
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
-.presentation-slider-group {
+/* The shared row: 👻, then the "Tags" label, then up to 4 tag chips (or
+   the empty-state hint spanning the same space). Explicit auto/auto
+   columns for 👻 + label keep them sized to their own content — the tag
+   columns are a separate, fixed repeat(4, 1fr) track so a 5th+ tag
+   (rendered in .presentation-tags-overflow below, NOT in this row) can
+   never widen column 1 or 2 by association. */
+.presentation-settings-row {
   display: grid;
-  gap: 8px;
+  grid-template-columns: auto auto repeat(4, 1fr);
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.ghost-toggle-btn {
+  grid-column: 1;
+  flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 42px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 1rem;
+}
+
+.ghost-toggle-btn.is-open {
+  background: var(--accent);
+  color: #081121;
+  border-color: transparent;
+}
+
+.presentation-settings-label {
+  grid-column: 2;
   color: var(--text);
   font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.presentation-slider-group input[type="range"] {
-  width: 100%;
+.presentation-tags-empty {
+  grid-column: 3 / -1;
+  margin: 0;
+}
+
+.presentation-tags-row {
+  /* display: contents lets these tag buttons become direct grid items of
+     the shared row above (landing in its tag-only columns 3–6) instead of
+     boxed inside their own nested container — grid-column here would be
+     inert once that happens, so it's intentionally not set. */
+  display: contents;
+}
+
+/* 5th+ tag: same 4-per-row shape, own row(s) below the shared one — never
+   widens the shared row sideways. */
+.presentation-tags-overflow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 12px;
+  margin-top: 10px;
+}
+
+.presentation-tag-btn {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: transparent;
+  color: #9ec2ff;
+  border: 1px solid rgba(70, 130, 255, 0.5);
+  font-weight: 600;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.presentation-tag-btn:disabled {
+  opacity: 0.35;
+}
+
+/* Outlined -> Filled Neon Blue. Applied = filled, nothing else — no
+   checkmarks, no badges layered on top. --neon-blue/--neon-blue-glow are
+   the blue counterpart to the neon green already used for the Loop toggle
+   and 🤖 Automation button (#00ff00 + matching glow) — same treatment,
+   different hue, so "applied" reads with the same intensity across the
+   app. */
+.presentation-tag-btn.is-applied {
+  background: var(--neon-blue);
+  color: #001522;
+  border-color: transparent;
+  box-shadow: 0 0 12px var(--neon-blue-glow), 0 0 6px var(--neon-blue-glow);
 }
 
 /* Compact single-row Loop Automation step flow. Deliberately NOT built on
@@ -819,7 +1345,7 @@ hr {
    time; switching steps swaps content in place rather than growing the
    row's height. */
 .automation-panel {
-  width: min(96vw, 620px);
+  width: min(96vw, 720px);
 }
 
 .automation-step {
@@ -984,6 +1510,58 @@ hr {
   }
 }
 
+@media (max-width: 700px) {
+  /* Intermediate easing step (Toolbar resizing/polish pass): brings the
+     enlarged desktop PRIMARY/HIGH-FREQUENCY sizing down gradually before
+     the ≤520px query below does the final, tightest squeeze — avoids a
+     single abrupt jump from "large desktop icons" to "small phone icons". */
+  .presentation-controls {
+    width: min(97vw, 560px);
+  }
+
+  .presentation-controls-bar {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  #overlay-prev-btn,
+  #overlay-play-btn,
+  #overlay-next-btn {
+    min-height: 50px;
+    font-size: 1.4rem;
+    padding: 6px 4px;
+  }
+
+  .overlay-loop-toggle {
+    flex-basis: 50px;
+    min-width: 50px;
+    font-size: 1.35rem;
+  }
+
+  .overlay-btn-favorite {
+    flex-basis: 54px;
+    font-size: 1.3rem;
+  }
+
+  .overlay-btn-automation {
+    flex-basis: 48px;
+    font-size: 1.15rem;
+  }
+
+  .overlay-btn-hide {
+    flex-basis: 66px;
+  }
+
+  .overlay-btn-undo-hide {
+    flex-basis: 60px;
+  }
+
+  .overlay-btn-danger,
+  .overlay-btn-gear {
+    flex-basis: 48px;
+  }
+}
+
 @media (max-width: 520px) {
   .media-picker-row {
     grid-template-columns: 1fr;
@@ -999,6 +1577,10 @@ hr {
 
   .viewer-header-main {
     flex-wrap: wrap;
+  }
+
+  .gallery-jump-group {
+    width: 100%;
   }
 
   .toolbar-filter-group {
@@ -1025,14 +1607,37 @@ hr {
   }
 
   .overlay-btn {
-    min-height: 38px;
+    min-height: 40px;
     padding: 8px 6px;
     font-size: 0.82rem;
+  }
+
+  #overlay-prev-btn,
+  #overlay-play-btn,
+  #overlay-next-btn {
+    min-height: 40px;
+    font-size: 1.15rem;
+    padding: 6px 4px;
+  }
+
+  .overlay-loop-toggle {
+    flex-basis: 44px;
+    min-width: 44px;
+    font-size: 1.15rem;
   }
 
   .overlay-btn-favorite,
   .overlay-btn-gear {
     flex-basis: 42px;
+  }
+
+  .overlay-btn-favorite {
+    font-size: 1.1rem;
+  }
+
+  .overlay-btn-danger {
+    flex-basis: 44px;
+    font-size: 0.72rem;
   }
 
   .overlay-btn-hide {
@@ -1047,6 +1652,7 @@ hr {
 
   .overlay-btn-automation {
     flex-basis: 42px;
+    font-size: 1rem;
   }
 
   .favorite-toggle {
