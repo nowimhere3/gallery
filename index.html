@@ -1,3 +1,4 @@
+Index · HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,90 +17,180 @@
         </p>
       </div>
     </header>
-
+ 
     <main class="layout">
       <section class="panel controls-panel">
         <h2>Load Media</h2>
+ 
+        <!-- [LIBRARY-PROFILE-UX / Phase 8.5]
+             WHAT: Collapses the legacy Choose Files/Choose Folder controls
+             behind a <details> disclosure, expanded by default.
+             WHY: The legacy controls remain immediately discoverable on a
+             fresh load, then collapse after a successful legacy selection
+             to reclaim vertical space.
+             FUTURE: Whether this defaults expanded, and whether it stays
+             collapsed, may become a user Preference later (see Gallery
+             Control Settings Preferences, not built yet) — this hardcoded
+             default is a placeholder for that, not a permanent decision. -->
+        <details id="legacy-picker-details" class="legacy-picker-details" open>
+        <summary>Legacy Picker</summary>
 
         <div class="media-picker-row">
           <label class="button-like secondary">
             <span>Choose Files</span>
             <input id="file-input" type="file" accept="image/*,video/*" multiple hidden />
           </label>
-
+ 
           <label class="button-like">
             <span>Choose Folder</span>
             <input id="folder-input" type="file" accept="image/*,video/*" multiple webkitdirectory hidden />
           </label>
         </div>
-
+ 
         <p class="hint">
           Files stay local in your browser. Nothing is uploaded.
         </p>
+        </details>
 
+        <!-- [FSA] File System Access folder access — an ADDITIONAL way to
+             load a folder, alongside Choose Files/Choose Folder above (not
+             a replacement). -->
+        <div class="media-picker-row fsa-picker-row">
+          <button id="fsa-choose-folder-btn" class="button-like secondary" type="button">
+            <span>Choose Folder (FSA)</span>
+          </button>
+        </div>
+        <!-- [LIBRARY-REGISTRY] Populated by renderRecentLibraries() in
+             main.js — one row per previously-chosen FSA folder, most
+             recently opened first. Hidden (via the `hidden` class) when
+             empty. -->
+        <div id="fsa-recent-libraries" class="fsa-recent-libraries hidden"></div>
+        <p id="fsa-status-text" class="hint" role="status"></p>
+        <!-- [LIBRARY-PROFILE-UX / Phase 8.5]
+             WHAT: One button, shown whenever a library/folder is loaded —
+             reads "Associate with Profile" when the current load has no
+             association yet, "Change Profile" once it does.
+             WHY: Section 5 rule — a wrong association must be fixable
+             without deleting/recreating the library, and there is
+             deliberately no separate second button/UI for that; same
+             control, same click handler, different current state.
+             FUTURE: This is NAVIGATION ONLY — it must never gain its own
+             profile-selection UI. It always defers to the real Profile
+             <details> section (auto-expanded + scrolled into view by this
+             same click handler) for the actual choice. See
+             syncAssociateButtonVisibility()/scrollToProfileSection() in
+             main.js. -->
+        <button id="fsa-associate-btn" class="button-like secondary fsa-associate-btn hidden" type="button" disabled>
+          <span id="fsa-associate-btn-label">Associate with Profile</span>
+        </button>
+ 
         <hr />
-
+ 
         <section class="playback-section">
         <h2>Slideshow</h2>
-
+ 
         <div class="control-grid playback-grid">
           <button id="play-btn" disabled>Start</button>
           <button id="stop-btn" disabled>Stop</button>
           <button id="prev-btn" disabled>Previous</button>
           <button id="next-btn" disabled>Next</button>
         </div>
-
+ 
         <button id="clear-btn" class="danger clear-media-btn">Clear Media</button>
-
+ 
         <hr />
         </section>
-
+ 
         <details class="tags-section">
         <summary>Tags</summary>
-
-        <p class="hint">
-          Define the tag vocabulary here. Applying tags to media happens elsewhere in a future phase — this list is just the set of tags that exist.
-        </p>
-
+ 
+        <div id="tag-activity-center" class="tag-activity-center" role="status" aria-live="polite" aria-label="Tag Status Update Center">
+          <div id="tag-activity-neutral" class="tag-activity-neutral">Select a tag to view its latest activity.</div>
+          <div id="tag-activity-content" class="hidden">
+            <div class="tag-activity-row">
+              <span id="tag-activity-name" class="tag-activity-value"></span>
+              <span class="tag-activity-description">(last tagged)</span>
+            </div>
+            <!-- [Phase 8.3-2] Built dynamically in main.js — up to three
+                 rows (Shuffle OFF / Shuffle ON / legacy-unknown), each with
+                 its own "Find" action that populates the existing Gallery
+                 Jump input rather than applying a tag filter. See
+                 renderTagActivityCenter() / resumeTagActivityToJump(). -->
+            <div id="tag-activity-rows" class="tag-activity-rows"></div>
+            <span id="tag-activity-empty" class="tag-activity-neutral hidden">No tag activity recorded</span>
+          </div>
+        </div>
+ 
         <div class="tag-create-row">
           <input id="tag-create-input" type="text" placeholder="New tag name" maxlength="40" />
           <button id="tag-create-btn" class="secondary" type="button">Add</button>
         </div>
-
+ 
         <p id="tags-status-text" class="hint" role="status"></p>
-
+ 
         <div id="tags-empty" class="hint">No tags yet.</div>
         <div id="tags-grid" class="tags-grid hidden"></div>
         </details>
-
+ 
         <hr />
-
+ 
         <details class="profile-section">
         <summary>Profile</summary>
-
+ 
         <p class="hint">
           Favorites live in a portable Profile, keyed by file path — not tied to this browser tab.
         </p>
-
+ 
+        <div class="profile-current-row">
+          <label for="profile-select" class="profile-select-label">Profile</label>
+          <select id="profile-select"></select>
+          <button id="profile-associate-btn" class="secondary hidden" type="button" disabled>Associate Current Library</button>
+        </div>
+ 
+        <div class="profile-create-row">
+          <input id="profile-create-input" type="text" placeholder="New profile name" maxlength="60" />
+          <button id="profile-create-btn" class="secondary" type="button">Save Profile</button>
+        </div>
+ 
+        <p id="profile-active-status-text" class="hint" role="status"></p>
+ 
+        <hr class="profile-inline-hr" />
+ 
         <div class="control-stack">
           <button id="profile-export-btn" class="secondary" type="button">Export Profile (.json)</button>
           <button id="profile-import-merge-btn" class="secondary" type="button">Import Profile (Merge)</button>
           <button id="profile-import-replace-btn" class="secondary" type="button">Import Profile (Replace)</button>
           <input id="profile-import-input" type="file" accept="application/json,.json" hidden />
+          <!-- [LIBRARY-PROFILE-UX / Phase 8.5]
+               WHAT: Creates a brand-new, independent Profile pre-populated
+               from an exported .json, instead of merging/replacing into
+               whichever Profile is currently active.
+               WHY: Section 9 — "reuse another Profile as a starting point"
+               without two libraries ending up silently sharing one mutable
+               Profile. Built entirely from EXISTING primitives
+               (createProfile + switchProfile + importJSON(\"replace\")) —
+               no new Profile-storage mechanism.
+               FUTURE: The created Profile diverges independently from here
+               on — this is a one-time copy, not an ongoing link back to
+               the source file. -->
+          <button id="profile-import-copy-btn" class="secondary" type="button">Import as New Profile</button>
+          <input id="profile-import-copy-input" type="file" accept="application/json,.json" hidden />
         </div>
 
+        <button id="profile-delete-btn" class="danger profile-delete-btn" type="button" title="Delete this profile">Delete Profile</button>
+ 
         <label class="compact-check wide-check">
           <input id="profile-skip-missing-input" type="checkbox" />
           <span>Only import entries for files currently loaded</span>
         </label>
-
+ 
         <p id="profile-status-text" class="hint" role="status"></p>
-
+ 
         <hr />
         </details>
-
+ 
         <section class="slideshow-settings-section">
-
+ 
         <div class="form-row interval-control">
           <label for="interval-input">Interval (seconds)</label>
           <div class="interval-stepper">
@@ -108,33 +199,51 @@
             <button id="interval-increase-btn" class="secondary" type="button" aria-label="Increase interval">+</button>
           </div>
         </div>
-
+ 
         <div class="checkbox-stack">
           <label class="compact-check wide-check">
             <input id="shuffle-input" type="checkbox" checked />
             <span>Shuffle</span>
           </label>
 
+          <label class="compact-check wide-check" title="Show only the first loaded item with each filename and file size">
+            <input id="skip-duplicates-input" type="checkbox" />
+            <span>Skip Duplicates</span>
+          </label>
+ 
           <label class="compact-check wide-check">
             <input id="loop-input" type="checkbox" checked />
             <span>Loop Playlist</span>
           </label>
-
+ 
           <label class="compact-check wide-check">
             <input id="fill-input" type="checkbox" checked />
             <span>Fill Panel</span>
           </label>
         </div>
-
+ 
         <div class="status-box">
           <div><strong>Status:</strong> <span id="status-text">No media loaded</span></div>
           <div><strong>Selected:</strong> <span id="selected-text">—</span></div>
           <div><strong>View:</strong> <span id="view-mode-text">All Media</span></div>
+          <!-- [LIBRARY-PROFILE-UX / Phase 8.5]
+               WHAT: Live Library<->Profile association state for whatever
+               is CURRENTLY LOADED — not the globally active profile name.
+               WHY: The old association affordance only lived in a button
+               that could scroll out of view; this makes the state itself
+               always visible, same green/terminal language as the rest of
+               this box and the Status Update Center.
+               FUTURE: Driven entirely by updateAssociatedStatusRow() in
+               main.js, itself derived from currentSourceKind/
+               activeLibraryRecord — never a separate stored value. Do not
+               let this drift out of sync with those; if a new source kind
+               is ever added, update that one function, not this markup. -->
+          <div><strong>Associated:</strong> <span id="associated-text">—</span></div>
         </div>
         <hr />
         </section>
       </section>
-
+ 
       <div class="media-content">
       <section id="viewer-panel" class="panel viewer-panel">
         <div class="viewer-header">
@@ -158,47 +267,101 @@
             <button id="favorite-btn" class="favorite-toggle hidden" type="button" aria-label="Toggle favorite">
               ♡
             </button>
+            <div class="toolbar-filter-group">
+              <span class="toolbar-filter-label">Tags</span>
+              <div class="filter-toggle" role="group" aria-label="Tag filter">
+                <button id="tags-filter-toggle-btn" class="filter-btn" type="button" aria-haspopup="true" aria-expanded="false">Tags ▼</button>
+              </div>
+            </div>
           </div>
           <span id="counter-text">0 / 0</span>
         </div>
-
+ 
+        <!-- Phase 6.3 — Gallery Tag Filtering. Grows horizontally first
+             (responsive multi-column grid), vertically only as a last
+             resort, so the media grid below shifts down as little as
+             possible — the "large multi-row dropdown" the original
+             Automation UI ran into and was later refactored away from. -->
+        <div id="tags-filter-panel" class="tags-filter-panel hidden">
+          <p id="tags-filter-empty" class="hint">No tags yet — create some in Gallery Settings.</p>
+          <div id="tags-filter-grid" class="tags-filter-grid hidden"></div>
+        </div>
+ 
         <div id="viewer-empty" class="viewer-empty">
           Choose files or a folder to begin.
         </div>
-
+ 
         <div id="viewer-stage" class="viewer-stage hidden"></div>
       </section>
-
+ 
       <section class="panel gallery-panel">
       <div class="viewer-header">
-        <h2>Gallery</h2>
-        <span id="gallery-count">0 items</span>
+        <div class="viewer-header-main">
+          <h2>Gallery</h2>
+          <span id="gallery-count">0 items</span>
+        </div>
+ 
+        <!-- Phase 1 — Gallery Media Navigation. Human-readable 1-based
+             numbering ("400" = the 400th item in the current
+             Gallery-visible sequence), same set the runtime/filter
+             pipeline already produces — no second ordering system.
+             [8.5] That's exactly why BOTH buttons below are already
+             "search-context" jumps (the number means "in your current
+             filter/search results", e.g. the Tags filter panel), not "in
+             the whole library" — they only differ in whether the target
+             also becomes the LOADED item (direct) or just gets scrolled to
+             (search/locate). Tooltips spell this out explicitly.
+             [Phase 8.3-2] The Status Update Center's "Find" actions feed
+             this same input for the same reason: a stored tagging position
+             is only meaningful against the visible-item total that existed
+             at tag time, which is exactly what this control already
+             validates against (an out-of-range number is rejected, same as
+             any manually-typed one) — no separate resume mechanism. -->
+        <div class="gallery-jump-group" role="group" aria-label="Select and navigate to media">
+          <span class="toolbar-filter-label">Select</span>
+          <input
+            id="gallery-jump-input"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            class="gallery-jump-input"
+            aria-label="Media number to jump to"
+          />
+          <span class="gallery-jump-separator">then →</span>
+          <button
+            id="gallery-jump-mode-find-btn"
+            class="filter-btn active"
+            type="button"
+            aria-pressed="true"
+            title="Search: scroll to this position in your current filtered Gallery view (does not load it)"
+          >Find Below</button>
+          <span class="gallery-jump-separator">or</span>
+          <button
+            id="gallery-jump-mode-play-btn"
+            class="filter-btn"
+            type="button"
+            aria-pressed="false"
+            title="Direct jump: load this media into the Viewer immediately"
+          >Load in Player</button>
+        </div>
       </div>
-
+ 
       <div id="gallery-empty" class="gallery-empty">
         No media loaded yet.
       </div>
-
+ 
       <div id="gallery-grid" class="gallery-grid hidden"></div>
       </section>
       </div>
     </main>
   </div>
-
+ 
   <div id="presentation-controls" class="presentation-controls hidden" tabindex="0" aria-label="Presentation controls">
-    <div id="presentation-settings" class="presentation-settings hidden">
-      <label class="presentation-slider-group">
-        <span>Ghost Opacity</span>
-        <input id="ghost-opacity-input" type="range" min="5" max="100" step="1" value="15" />
-        <span id="ghost-opacity-label">15%</span>
-      </label>
-    </div>
-
     <div class="presentation-controls-bar">
       <button id="overlay-favorite-btn" class="overlay-btn overlay-btn-favorite hidden" type="button" aria-label="Toggle favorite">♡</button>
       <label id="video-loop-control" class="loop-toggle-control overlay-loop-toggle" title="Loop: OFF (click to enable)">
         <input id="video-loop-input" type="checkbox" />
-        <span id="video-loop-state-text">🔁 OFF</span>
+        <span id="video-loop-state-text">🔁</span>
       </label>
       <button id="overlay-automation-btn" class="overlay-btn overlay-btn-automation" type="button" title="Loop Automations" aria-label="Loop Automations">🤖</button>
       <button id="overlay-prev-btn" class="overlay-btn" type="button">◀</button>
@@ -209,7 +372,43 @@
       <button id="overlay-exit-btn" class="overlay-btn overlay-btn-danger" type="button">Exit</button>
       <button id="overlay-settings-btn" class="overlay-btn overlay-btn-gear" type="button">⚙</button>
     </div>
-
+ 
+    <!-- Sits between the toolbar above and the ⚙ row below — a sibling of
+         both — and only occupies layout space while open. One row, same
+         height as the toolbar: "Ghost Opacity" label, slider, percentage,
+         left to right. -->
+    <div id="ghost-popunder" class="ghost-popunder hidden">
+      <div class="ghost-popunder-row">
+        <label class="ghost-popunder-label" for="ghost-opacity-input">Ghost Opacity</label>
+        <input id="ghost-opacity-input" type="range" min="5" max="100" step="1" value="15" />
+        <span id="ghost-opacity-label">15%</span>
+      </div>
+    </div>
+ 
+    <!-- The "⚙" row. Appears below the toolbar — same placement pattern
+         as #automation-panel below. Same row height as the toolbar: 👻 on
+         the far left, then the "Tags" label, then up to 4 tag chips, all
+         sharing that one row. A 5th+ tag doesn't grow this row sideways —
+         it starts an additional row (.presentation-tags-overflow) of the
+         same 4-per-row shape underneath. -->
+    <div id="presentation-settings" class="presentation-settings hidden">
+      <div class="presentation-settings-row">
+        <button
+          id="ghost-toggle-btn"
+          class="ghost-toggle-btn"
+          type="button"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-label="Ghost Opacity"
+          title="Ghost Opacity"
+        >👻</button>
+        <span class="presentation-settings-label">Tags</span>
+        <p id="presentation-tags-empty" class="hint presentation-tags-empty">No tags yet — create some in Gallery Settings.</p>
+        <div id="presentation-tags-row" class="presentation-tags-row hidden"></div>
+      </div>
+      <div id="presentation-tags-overflow" class="presentation-tags-overflow hidden"></div>
+    </div>
+ 
     <!-- Compact single-row step flow. Exactly one of the three .automation-step
          children is visible at a time (Step 1: choose type. Step 2: the chosen
          type's controls, replacing Step 1 in place, not appended below it). -->
@@ -219,7 +418,7 @@
         <button id="automation-choice-times-btn" class="automation-chip" type="button">X Times</button>
         <button id="automation-choice-timer-btn" class="automation-chip" type="button">Until Timer</button>
       </div>
-
+ 
       <div id="automation-step-times" class="automation-step automation-step-workflow hidden">
         <button id="automation-times-back-btn" class="automation-back-btn" type="button" aria-label="Back">‹</button>
         <div class="automation-config-group">
@@ -232,7 +431,7 @@
         </div>
         <button id="automation-times-apply-btn" class="automation-chip automation-apply-btn" type="button">Apply</button>
       </div>
-
+ 
       <div id="automation-step-timer" class="automation-step automation-step-workflow hidden">
         <button id="automation-timer-back-btn" class="automation-back-btn" type="button" aria-label="Back">‹</button>
         <div class="automation-config-group">
@@ -255,7 +454,12 @@
       </div>
     </div>
   </div>
-
+ 
+  <!-- [TS-POC] mux.js — established MPEG-TS -> fragmented MP4 transmuxer,
+       used only by src/playback/ts-playback-adapter.js for this
+       experimental .ts branch. UMD build, attaches window.muxjs; nothing
+       else in the app touches it. -->
+  <script src="https://cdn.jsdelivr.net/npm/mux.js@7/dist/mux.min.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
