@@ -1,12 +1,54 @@
+import {
+  normalizeShuffleMode,
+  selectNextShuffledIndex,
+  SHUFFLE_MODE_LOOP,
+} from "./shuffle-selector.js";
+
+const MAX_PLANNED_ITEMS = 6;
+
 export class MediaRuntime {
   #items = [];
   #currentIndex = -1;
   #timerId = null;
   #intervalMs = 5000;
   #shuffle = true;
+  #shuffleMode = SHUFFLE_MODE_LOOP;
+  #shufflePoolKey = null;
+  #plan = [];
+  #planPoolKey = null;
+  #advanceHeld = false;
+  #random = Math.random;
   #loop = true;
   #isPlaying = false;
   #listeners = new Set();
+
+  // [UI-REDESIGN / STAGE 6] [PM-HIDE-UNDO-WAYPOINT-RUNTIME-FIX]
+  // WHAT: A plain incrementing/decrementing counter — +1 on every
+  // successful next() move, -1 on every successful previous() move,
+  // touched in EVERY branch that actually moves #currentIndex (shuffle
+  // and sequential alike), regardless of what triggered the call: a
+  // manual button/keyboard press, the slideshow's own interval timer, or
+  // a video's "ended" event calling notifyVideoEnded() -> next(). Exposed
+  // read-only via getState().navigationStep.
+  // WHY this exists: a caller (main.js) that wants to know "how far has
+  // the user moved past some earlier position" cannot reliably track that
+  // by wrapping its OWN button click handlers — next()/previous() are also
+  // called directly from INSIDE this class (the interval timer, video-end)
+  // where no external caller ever runs, so any external interception
+  // silently undercounts real movement the moment autoplay is involved.
+  // This counter is instead updated at the one place both paths already
+  // funnel through, so it can never be bypassed by an internal auto-advance
+  // the way a call-site hook can.
+  // Deliberately NOT reset by load()/clear() — a caller wanting to measure
+  // "steps since some checkpoint" reads this value AT the checkpoint and
+  // compares the DELTA later; resetting it here would just move the
+  // bookkeeping burden onto guessing when a caller's checkpoint should also
+  // reset, for zero benefit (a delta computation is agnostic to the
+  // absolute baseline). #advanceIfCurrentHidden() deliberately does NOT
+  // touch it either — that moves the CURRENT item off a newly-hidden one,
+  // which is a landing point a caller measures FROM, not a step away from
+  // anywhere.
+  #navigationStep = 0;
 
   // Shuffle "back history" — a browser-style history stack. #history holds
   // the sequence of indices actually visited (oldest first); #historyCursor
@@ -29,7 +71,8 @@ export class MediaRuntime {
   #profile = null;
   #unsubscribeProfile = null;
 
-  constructor({ profile = null } = {}) {
+  constructor({ profile = null, random = Math.random } = {}) {
+    this.#random = typeof random === "function" ? random : Math.random;
     this.setProfile(profile);
   }
 
@@ -87,6 +130,7 @@ export class MediaRuntime {
   }
 
   load(items) {
+    this.#advanceHeld = false;
     this.stop();
     this.#items = Array.isArray(items) ? [...items] : [];
     this.#items.forEach((item) => this.#stampProfileFields(item));
@@ -110,6 +154,7 @@ export class MediaRuntime {
       isPlaying: this.#isPlaying,
       intervalMs: this.#intervalMs,
       shuffle: this.#shuffle,
+      shuffleMode: this.#shuffleMode,
       loop: this.#loop,
       hasItems: this.#items.length > 0,
       // Distinct from hasItems: true only if at least one loaded item is
@@ -120,6 +165,11 @@ export class MediaRuntime {
       // true while we're playing but deliberately NOT running a timer,
       // because the current item is a video we're letting play to completion
       waitingOnVideo: this.#isPlaying && this.#timerId === null && this.#isCurrentItemVideo(),
+      // [UI-REDESIGN / STAGE 6] [PM-HIDE-UNDO-WAYPOINT-RUNTIME-FIX]
+      // See #navigationStep's own declaration comment for the full WHAT/WHY
+      // — a caller measuring "steps since some earlier position" reads this
+      // at that earlier position and compares the delta later.
+      navigationStep: this.#navigationStep,
     };
   }
 
@@ -141,6 +191,20 @@ export class MediaRuntime {
 
   setShuffle(enabled) {
     this.#shuffle = Boolean(enabled);
+    this.#clearPlan();
+    this.#emit();
+  }
+
+  // [PLAYBACK / SHUFFLE-MODES / PREFERENCE]
+  // Changing behavior starts a fresh transient cycle but preserves Back
+  // history; the persisted value is a preference, never session/deck state.
+  setShuffleMode(mode) {
+    const normalized = normalizeShuffleMode(mode);
+    if (normalized === this.#shuffleMode) return;
+    this.#shuffleMode = normalized;
+    this.#shufflePoolKey = null;
+    this.#clearPlan();
+    this.#visitedShuffleIndices = this.#currentIndex >= 0 ? new Set([this.#currentIndex]) : new Set();
     this.#emit();
   }
 
@@ -149,14 +213,120 @@ export class MediaRuntime {
     this.#emit();
   }
 
-  setCurrentIndex(index) {
+  // [UI-REDESIGN / Stage 5] `keepHistory` is opt-in and OFF by default, so
+  // every existing caller keeps the exact behavior it has always had: a
+  // fresh list needs a fresh history, which is right for reloadRuntime()'s
+  // preserveId restore and for the deferred-flush fallback.
+  //
+  // With it ON, this behaves like following a link in a browser instead of
+  // opening a new session: forward history is truncated, the picked index
+  // becomes the newest entry, and everything visited before it stays
+  // reachable via previous(). Used by Gallery thumbnail selection, which is
+  // a navigation within the current sequence, not a new sequence.
+  setCurrentIndex(index, { keepHistory = false } = {}) {
     if (!this.#items.length) return;
     if (index < 0 || index >= this.#items.length) return;
 
     this.#currentIndex = index;
-    this.#resetHistory();
+    this.#clearPlan();
+
+    if (keepHistory) {
+      this.#history.splice(this.#historyCursor + 1);
+      // Re-picking the item already at the head would add a duplicate entry
+      // that previous() would then have to step over twice.
+      if (this.#history[this.#history.length - 1] !== index) {
+        this.#history.push(index);
+      }
+      this.#historyCursor = this.#history.length - 1;
+      this.#visitedShuffleIndices.add(index);
+      this.#capHistory();
+    } else {
+      this.#resetHistory();
+    }
+
     this.#scheduleAdvance();
     this.#emit();
+  }
+
+  // [UI-REDESIGN / Stage 5] Drops ONE item from the sequence in place,
+  // keeping visit history intact.
+  //
+  // WHY THIS EXISTS: load() is the only other way to change the item list,
+  // and it calls #resetHistory(), which collapses #history to just the
+  // current index. With Shuffle on — the default — previous() is driven
+  // entirely by that history, so a reload left Back with nowhere to go and
+  // the sequence behaved as though it started at the item after the removed
+  // one. That is correct for a genuinely new list (a fresh load, a filter
+  // switch) and wrong for "one item stopped matching the active filter",
+  // which is what this method is for.
+  //
+  // History holds INDICES, so removing an item shifts every later entry.
+  // Everything below is that remap: drop visits to the removed item, shift
+  // the rest down by one, and collapse the consecutive duplicates that
+  // dropping an entry can create (A,D,A would otherwise become A,A).
+  // #visitedShuffleIndices is remapped the same way, or the shuffle cycle
+  // would start excluding the wrong items.
+  //
+  // Returns false if the id is not present, so the caller can fall back to a
+  // full reload rather than assume this worked.
+  removeItemById(id) {
+    const removedIndex = this.#items.findIndex((item) => item.id === id);
+    if (removedIndex === -1) return false;
+
+    const wasCurrent = this.#currentIndex === removedIndex;
+    this.#clearPlan();
+    this.#items.splice(removedIndex, 1);
+
+    const shift = (index) => (index > removedIndex ? index - 1 : index);
+
+    const history = [];
+    // Tracks where the cursor lands as entries are dropped/shifted, so Back
+    // resumes from the same place in the visit order rather than the start.
+    let cursor = -1;
+    this.#history.forEach((index, position) => {
+      const withinCursor = position <= this.#historyCursor;
+      if (index === removedIndex) {
+        if (withinCursor) cursor = history.length - 1;
+        return;
+      }
+      const mapped = shift(index);
+      if (history.length && history[history.length - 1] === mapped) {
+        if (withinCursor) cursor = history.length - 1;
+        return;
+      }
+      history.push(mapped);
+      if (withinCursor) cursor = history.length - 1;
+    });
+
+    this.#history = history;
+    this.#historyCursor = history.length ? Math.min(Math.max(cursor, 0), history.length - 1) : -1;
+
+    this.#visitedShuffleIndices = new Set(
+      [...this.#visitedShuffleIndices].filter((index) => index !== removedIndex).map(shift)
+    );
+
+    if (!this.#items.length) {
+      this.#currentIndex = -1;
+    } else if (wasCurrent) {
+      // The removed item's slot is now occupied by whatever followed it,
+      // which is where the user should be standing.
+      this.#currentIndex = Math.min(removedIndex, this.#items.length - 1);
+      // Record that position as the newest visit so Back steps to the entry
+      // before the removed item rather than two entries before it.
+      if (this.#history[this.#historyCursor] !== this.#currentIndex) {
+        this.#history.splice(this.#historyCursor + 1);
+        this.#history.push(this.#currentIndex);
+        this.#historyCursor = this.#history.length - 1;
+        this.#visitedShuffleIndices.add(this.#currentIndex);
+      }
+    } else {
+      this.#currentIndex = shift(this.#currentIndex);
+    }
+
+    this.#capHistory();
+    this.#scheduleAdvance();
+    this.#emit();
+    return true;
   }
 
   next() {
@@ -172,6 +342,7 @@ export class MediaRuntime {
         if (this.#isItemVisible(this.#items[candidateIndex])) {
           this.#historyCursor = cursor;
           this.#currentIndex = candidateIndex;
+          this.#navigationStep += 1;
           this.#scheduleAdvance();
           this.#emit();
           return;
@@ -192,24 +363,43 @@ export class MediaRuntime {
         return;
       }
 
-      let pool = eligibleIndices.filter((index) => !this.#visitedShuffleIndices.has(index));
-
-      if (!pool.length) {
-        // Completed a full cycle through the currently-visible items —
-        // start a new cycle, but still avoid repeating the current item
-        // immediately if any other visible item exists.
-        this.#visitedShuffleIndices.clear();
-        pool = eligibleIndices.filter((index) => index !== this.#currentIndex);
-        if (!pool.length) pool = eligibleIndices;
+      // [PLAYBACK / SHUFFLE-MODES / SHUFFLE-LOOP]
+      // A membership change starts a fresh cycle. The key is transient and
+      // derived from the runtime-owned eligible pool; nothing is persisted.
+      const poolKey = this.#poolKey(eligibleIndices);
+      if (poolKey !== this.#shufflePoolKey) {
+        this.#shufflePoolKey = poolKey;
+        this.#clearPlan();
+        this.#visitedShuffleIndices = eligibleIndices.includes(this.#currentIndex)
+          ? new Set([this.#currentIndex])
+          : new Set();
       }
 
-      const nextIndex = pool[Math.floor(Math.random() * pool.length)];
+      let nextIndex;
+      if (this.#plan.length && this.#planPoolKey === poolKey) {
+        const entry = this.#plan.shift();
+        nextIndex = entry.index;
+        this.#visitedShuffleIndices = new Set(entry.visitedIndices);
+      } else {
+        this.#clearPlan();
+        const selection = selectNextShuffledIndex({
+          eligibleIndices,
+          currentIndex: this.#currentIndex,
+          mode: this.#shuffleMode,
+          visitedIndices: this.#visitedShuffleIndices,
+          random: this.#random,
+        });
+        nextIndex = selection.nextIndex;
+        this.#visitedShuffleIndices = new Set(selection.visitedIndices);
+      }
+      if (nextIndex === null) return;
 
       this.#currentIndex = nextIndex;
       this.#history.push(nextIndex);
       this.#historyCursor = this.#history.length - 1;
       this.#visitedShuffleIndices.add(nextIndex);
       this.#capHistory();
+      this.#navigationStep += 1;
 
       this.#scheduleAdvance();
       this.#emit();
@@ -226,6 +416,7 @@ export class MediaRuntime {
     }
 
     this.#currentIndex = targetIndex;
+    this.#navigationStep += 1;
     this.#scheduleAdvance();
     this.#emit();
   }
@@ -244,6 +435,7 @@ export class MediaRuntime {
         if (this.#isItemVisible(this.#items[candidateIndex])) {
           this.#historyCursor = cursor;
           this.#currentIndex = candidateIndex;
+          this.#navigationStep -= 1;
           this.#scheduleAdvance();
           this.#emit();
           return;
@@ -258,13 +450,19 @@ export class MediaRuntime {
     const targetIndex = this.#findVisibleBackward(this.#currentIndex);
     if (targetIndex === -1) return;
 
+    this.#navigationStep -= 1;
     this.#currentIndex = targetIndex;
     this.#scheduleAdvance();
     this.#emit();
   }
 
   play() {
-    if (!this.#items.length || this.#isPlaying) return;
+    this.#advanceHeld = false;
+    if (!this.#items.length) return;
+    if (this.#isPlaying) {
+      this.#scheduleAdvance();
+      return;
+    }
 
     this.#isPlaying = true;
     this.#scheduleAdvance();
@@ -272,6 +470,7 @@ export class MediaRuntime {
   }
 
   stop() {
+    this.#advanceHeld = false;
     if (!this.#isPlaying && this.#timerId === null) return;
 
     this.#isPlaying = false;
@@ -288,6 +487,75 @@ export class MediaRuntime {
   notifyVideoEnded() {
     if (!this.#isPlaying) return;
     this.next();
+  }
+
+  holdAdvanceForPendingVisual() {
+    this.#advanceHeld = true;
+    this.#clearTimer();
+  }
+
+  notifyCurrentItemVisible() {
+    this.#advanceHeld = false;
+    this.#scheduleAdvance();
+  }
+
+  // BREADCRUMBS - WAS
+  // Shuffle decisions were made only inside next(); callers could not know the
+  // actual future sequence without creating a second random-selection path.
+  //
+  // BREADCRUMBS - IS
+  // MediaRuntime remains the one shuffle authority. getPlannedItems() records
+  // the existing selector's real future outputs without moving currentIndex,
+  // history or navigationStep, and next() consumes that same plan head. The
+  // existing eligible-pool key remains the validity boundary.
+  //
+  // BREADCRUMBS - WILL BE
+  // Planning intentionally remains a small in-memory window. Discarded plans
+  // also discard already-consumed RNG draws because eligibility changed; no
+  // persistence or alternative shuffle authority should be inferred from it.
+  getPlannedItems(count) {
+    const requested = Math.min(MAX_PLANNED_ITEMS, Math.max(0, Math.floor(Number(count) || 0)));
+    if (!requested || !this.#shuffle || this.#items.length < 2 || this.#historyCursor < this.#history.length - 1) {
+      return [];
+    }
+
+    const eligibleIndices = this.#visibleIndices();
+    if (eligibleIndices.length < 2) return [];
+    const poolKey = this.#poolKey(eligibleIndices);
+
+    if (poolKey !== this.#shufflePoolKey) {
+      this.#shufflePoolKey = poolKey;
+      this.#clearPlan();
+      this.#visitedShuffleIndices = eligibleIndices.includes(this.#currentIndex)
+        ? new Set([this.#currentIndex])
+        : new Set();
+    }
+
+    if (this.#planPoolKey !== poolKey) {
+      this.#clearPlan();
+      this.#planPoolKey = poolKey;
+    }
+
+    let plannedIndex = this.#plan.length ? this.#plan.at(-1).index : this.#currentIndex;
+    let plannedVisited = this.#plan.length
+      ? new Set(this.#plan.at(-1).visitedIndices)
+      : new Set(this.#visitedShuffleIndices);
+
+    while (this.#plan.length < requested) {
+      const selection = selectNextShuffledIndex({
+        eligibleIndices,
+        currentIndex: plannedIndex,
+        mode: this.#shuffleMode,
+        visitedIndices: plannedVisited,
+        random: this.#random,
+      });
+      if (selection.nextIndex === null) break;
+      this.#plan.push({ index: selection.nextIndex, visitedIndices: [...selection.visitedIndices] });
+      plannedIndex = selection.nextIndex;
+      plannedVisited = new Set(selection.visitedIndices);
+    }
+
+    return this.#plan.slice(0, requested).map((entry) => this.#items[entry.index]);
   }
 
   #isCurrentItemVideo() {
@@ -307,6 +575,17 @@ export class MediaRuntime {
       if (this.#isItemVisible(item)) indices.push(index);
     });
     return indices;
+  }
+
+  #poolKey(eligibleIndices) {
+    return JSON.stringify(
+      eligibleIndices.map((index) => [index, this.#items[index]?.id ?? this.#items[index]?.relativePath ?? null])
+    );
+  }
+
+  #clearPlan() {
+    this.#plan = [];
+    this.#planPoolKey = null;
   }
 
   // Sequential-mode forward search: tries fromIndex+1..end first, then
@@ -402,6 +681,7 @@ export class MediaRuntime {
 
   #scheduleAdvance() {
     this.#clearTimer();
+    if (this.#advanceHeld) return;
     if (!this.#isPlaying) return;
 
     // Videos advance on their own "ended" event (see notifyVideoEnded),
@@ -414,6 +694,7 @@ export class MediaRuntime {
   }
 
   clear() {
+    this.#advanceHeld = false;
     this.stop();
     this.#items = [];
     this.#currentIndex = -1;
@@ -425,6 +706,8 @@ export class MediaRuntime {
     this.#history = this.#currentIndex >= 0 ? [this.#currentIndex] : [];
     this.#historyCursor = this.#history.length ? 0 : -1;
     this.#visitedShuffleIndices = this.#history.length ? new Set(this.#history) : new Set();
+    this.#shufflePoolKey = null;
+    this.#clearPlan();
   }
 
   // Keeps the history stack from growing unbounded over a long-running
